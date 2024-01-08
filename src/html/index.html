@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval'; object-src 'self'">
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../framework/bootstrap/css/bootstrap.css">
+    <link rel="stylesheet" href="../framework/bootstrap-icons/bootstrap-icons.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="shortcut icon" href="../img/icon.ico" type="image/x-icon">
+
+    
+    <title>InStatTimer</title>
+</head>
+
+<body class="bg-dark">
+    <div id="app">
+        <!-- Responsive navbar-->
+        <header-component></header-component>
+        <!-- Page content-->
+        <div class="container">
+            <keep-alive>
+                <component :is="session.currentTab"></component>
+            </keep-alive>
+        </div>
+
+    </div>
+
+    <script type="text/x-template" id="history-component-template">
+        <div class="card mb-4 bg-dark text-white border border-secondary" v-if="Object.keys(dialogs).length > 0">
+            <div class="card-body history-table">
+                <table class="table table-dark m-auto w-75 text-center ">
+                    <thead class="text-center">
+                        <tr>
+                            <th scope="col" style="width: 33%;">{{ dialogs.translations.action }}</th>
+                            <th scope="col">{{ dialogs.translations.duration }}</th>
+                            <th scope="col">{{ dialogs.translations.total_time }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="session.activities.length === 0">
+                            <td colspan="3">
+                                {{ dialogs.translations.there_are_no_activities}}
+                            </td>
+                        </tr>
+                        <tr v-for="activity of session.activities">
+                            <td>
+                                <i v-if="activity.dates.end === null" class="bi bi-play-circle-fill"></i> 
+                                <i v-else class="bi bi-play-fill"></i> 
+                                {{ dialogs.translations.session_of }}
+                                <span v-for="word of activity.name.split(' ')">
+                                    <span v-if="dialogs.translations[word.toLowerCase()] !== undefined">
+                                        {{ dialogs.translations[word.toLowerCase()] }}
+                                    </span>
+                                    <span v-else>
+                                        {{ word }}
+                                    </span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="clock-font text-nowrap">
+                                    {{ activity.elapsedTime.formatted }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="clock-font text-nowrap">
+                                    {{ activity.totalElapsedTime.formatted }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="timer-component-template">
+        <div class="row" v-if="Object.keys(dialogs).length > 0">
+            <div class="col-lg-12">
+                <!-- Timer-->
+                <div class="card mb-4 bg-dark text-white border border-secondary">
+                    <div v-if="session.dates.end === null">
+                        <div class="card-body">
+                            <div class="clock-card text-nowrap text-center">
+                                <div id="clock-display">
+                                    <div>
+                                        <h4 v-if="session.dates.start !== null && activity().get('active') !== null">
+                                            <span v-for="word of (activity().get('active')).name.split(' ')">
+                                                <span v-if="dialogs.translations[word.toLowerCase()] !== undefined">
+                                                    {{ dialogs.translations[word.toLowerCase()] }}
+                                                </span>
+                                                <span v-else>
+                                                    {{ word }}
+                                                </span>
+                                            </span>
+                                            <span v-if="(activity().get('active')).isRest === true">
+                                                (
+                                                {{ Number.isInteger((configuration.rest.time /1000 /60)) ? (configuration.rest.time /1000 /60) : (configuration.rest.time /1000 /60).toFixed(2) }}
+                                                {{ dialogs.translations.minutes.toLowerCase() }} )
+                                            </span>
+                                            <sup v-if="(activity().get('active')).description !== null" style="font-size: 13pt; margin-left: 5px; cursor: pointer;" :title="(activity().get('active')).description">
+                                                <i class="bi bi-info-circle"></i>
+                                            </sup>
+                                        </h4>
+                                        <h4 v-else>
+                                            <i class="bi bi-stopwatch"></i>
+                                        </h4>
+                                    </div>
+                                    <div class="clock-font">
+                                        <span class="clock-hours-seconds">
+                                            <span
+                                                v-if="session.calculations.time.activity.h !== null && session.calculations.time.activity.h > 0">
+                                                {{ session.calculations.time.activity.h < 10 ? '0' + session.calculations.time.activity.h : session.calculations.time.activity.h }}
+                                                :
+                                            </span>
+                                            <span v-if="session.calculations.time.activity.m !== null">
+                                                {{ session.calculations.time.activity.m < 10 ? '0' + session.calculations.time.activity.m : session.calculations.time.activity.m }}
+                                            </span>
+                                            <span v-else>
+                                                00
+                                            </span>
+                                            :
+                                            <span v-if="session.calculations.time.activity.s !== null">
+                                                {{ session.calculations.time.activity.s < 10 ? '0' + session.calculations.time.activity.s : session.calculations.time.activity.s }}
+                                            </span>
+                                            <span v-else>
+                                                00
+                                            </span>
+                                        </span>
+                                        <span class="clock-miliseconds">
+                                            <span v-if="session.calculations.time.activity.ms !== null">
+                                                .{{ session.calculations.time.activity.ms < 10 ? '0' + session.calculations.time.activity.ms : session.calculations.time.activity.ms }}
+                                            </span>
+                                            <span v-else>
+                                                .00
+                                            </span>
+                
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="d-block w-100 mb-5">
+                                    <div v-if="session.dates.start === null">
+                                        <button class="btn btn-success btn-lg" @click="action('startPeriod')">
+                                            <i class="bi bi-play-circle"></i> {{ dialogs.translations.start_period }}
+                                        </button>
+                                    </div>
+                                    <div v-else-if="(activity().get('active')) !== null">
+                                        <div v-if="(activity().get('active')).isRest === true">
+                                            <button v-if="activity().get('incompleteNoRest') === null" class="btn btn-success btn-lg"
+                                                @click="action('startNextNoRest')">
+                                                <i class="bi bi-fast-forward-circle"></i>
+                                                {{ dialogs.translations.start }}
+                                                <span v-for="word of (activity().get('nextNoRest')).name.split(' ')">
+                                                    <span v-if="dialogs.translations[word.toLowerCase()] !== undefined">
+                                                        {{ dialogs.translations[word.toLowerCase()] }}
+                                                    </span>
+                                                    <span v-else>
+                                                        {{ word }}
+                                                    </span>
+                                                </span>
+                                            </button>
+                                            <button v-else class="btn btn-success btn-lg" @click="action('continueNoRest')">
+                                                <i class="bi bi-fast-forward-circle"></i>
+                                                {{ dialogs.translations.continue }}
+                                                <span v-for="word of (activity().get('incompleteNoRest')).name.split(' ')">
+                                                    <span v-if="dialogs.translations[word.toLowerCase()] !== undefined">
+                                                        {{ dialogs.translations[word.toLowerCase()] }}
+                                                    </span>
+                                                    <span v-else>
+                                                        {{ word }}
+                                                    </span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                        <div v-else>
+                                            <button class="btn btn-success btn-lg" @click="action('completeNoRest')">
+                                                <i class="bi bi-check-circle"></i>
+                                                {{ dialogs.translations.complete }}
+                                                <span v-for="word of (activity().get('active')).name.split(' ')">
+                                                    <span v-if="dialogs.translations[word.toLowerCase()] !== undefined">
+                                                        {{ dialogs.translations[word.toLowerCase()] }}
+                                                    </span>
+                                                    <span v-else>
+                                                        {{ word }}
+                                                    </span>
+                                                </span>
+                                            </button>
+                
+                                            <button class="btn btn-warning btn-lg text-light ms-2" @click="action('startRest')">
+                                                <i class="bi bi-pause-circle"></i>
+                                                <span v-for="word of (activity().get('rest')).name.split(' ')">
+                                                    <span v-if="dialogs.translations[word.toLowerCase()] !== undefined">
+                                                        {{ dialogs.translations[word.toLowerCase()] }}
+                                                    </span>
+                                                    <span v-else>
+                                                        {{ word }}
+                                                    </span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-start">{{ dialogs.translations.total_time }}:
+                                    <small class="mini-clock-hours-seconds clock-font">
+                                        <span v-if="session.calculations.time.total.h !== null && session.calculations.time.total.h > 0">
+                                            {{ session.calculations.time.total.h < 10 ? '0' + session.calculations.time.total.h : session.calculations.time.total.h }}:
+                                        </span>
+                                        <span v-if="session.calculations.time.total.m !== null">
+                                            {{ session.calculations.time.total.m < 10 ? '0' + session.calculations.time.total.m : session.calculations.time.total.m }}
+                                        </span>
+                                        <span v-else>
+                                            00
+                                        </span>
+                                        :
+                                        <span v-if="session.calculations.time.total.s !== null">
+                                            {{ session.calculations.time.total.s < 10 ? '0' + session.calculations.time.total.s : session.calculations.time.total.s }}
+                                        </span>
+                                        <span v-else>
+                                            00
+                                        </span>
+                                    </small>
+                                    <span class="mini-clock-miliseconds clock-font">
+                                        <span v-if="session.calculations.time.total.ms !== null">
+                                            .{{ session.calculations.time.total.ms < 10 ? '0' + session.calculations.time.total.ms : session.calculations.time.total.ms }}
+                                        </span>
+                                        <span v-else>
+                                            .00
+                                        </span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="card-body">
+                        <div class="text-center pb-4">
+                            <h4>
+                                <i class="bi bi-check-circle-fill"></i> {{ dialogs.translations.completed_period }}
+                            </h4>
+                        </div>
+                        <div>
+                            <table class="table table-dark m-auto w-50 text-center">
+                                <tbody>
+                                    <tr v-for="activity in (statistics().getAll()).noRest.activities">
+                                        <td class="w-50">
+                                            {{ dialogs.translations.time_in }}
+                                            <span v-for="word of activity.name.split(' ')">
+                                                <span v-if="dialogs.translations[word.toLowerCase()] !== undefined">
+                                                    {{ dialogs.translations[word.toLowerCase()] }}
+                                                </span>
+                                                <span v-else>
+                                                    {{ word }}
+                                                </span>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="clock-font text-nowrap">
+                                                {{ activity.elapsedTime.formatted}}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w-50">{{ dialogs.translations.total_analysis_time }}</td>
+                                        <td>
+                                            <span class="clock-font text-nowrap">
+                                                {{ (statistics().getAll()).noRest.totalElapsedTime.formatted }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w-50">{{ dialogs.translations.total_rest_time }}</td>
+                                        <td>
+                                            <span class="clock-font text-nowrap">
+                                                {{ (statistics().getAll()).rest.totalElapsedTime.formatted }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="w-50">{{ dialogs.translations.total_analysis_and_rest_time }}</td>
+                                        <td>
+                                            <span class="clock-font text-nowrap">
+                                                {{ (statistics().getAll()).totalElapsedTime.formatted }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-12">
+                <!-- History -->
+                <history-component></history-component>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="header-component-template">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <div class="container my-2">
+                <div class="small text-muted">
+                    <span v-if="dialogs.translations.current_date">
+                        {{ dialogs.translations.current_date[0].toUpperCase() + dialogs.translations.current_date.slice(1) }}
+                    </span>
+                </div>
+                <ul class="navbar-nav ms-auto ">
+                    <li class="nav-item">
+                        <a :class="currentTab === 'timer' ? 'nav-link d-inline m-1 active' : 'nav-link d-inline m-1'" @click="showTimerTab" :title="dialogs.translations.timer"><i class="bi bi-stopwatch"></i></a>
+                        <a :class="currentTab === 'foul-viewer' ? 'nav-link d-inline m-1 active' : 'nav-link d-inline m-1'" @click="showFoulViewerTab" :title="dialogs.translations.foul_viewer"><i class="bi bi-book"></i></a>
+                        <a :class="currentTab === 'settings' ? 'nav-link d-inline m-1 active' : 'nav-link d-inline m-1'" @click="showSettingsTab" title="Configuración"><i class="bi bi-sliders2"></i></a>
+                        <!-- <a :class="currentTab === 'about' ? 'nav-link d-inline m-1 active' : 'nav-link d-inline m-1'" @click="showAboutTab" title="Acerca de InStatTimer"><i class="bi bi-info-circle"></i></a> -->
+                        <translater-component></translater-component>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </script>
+
+    <script type="text/x-template" id="settings-component-template">
+        <div class="row">
+            <div class="container col-lg-6">
+                <!-- Timer-->
+                <div class="card mb-4 bg-dark text-white border border-secondary">
+                    <div class="card-body">
+                        <div v-for="element of configurations">
+                            <div>
+                                <span class="fs-5">
+                                    {{ dialogs.translations[element.component] }}
+                                </span>
+                                <hr>
+                                <div v-if="element.component === 'timer'">
+                                    <div class="w-75 m-auto">
+                                        <label for="rest-time">{{ dialogs.translations.rest_time }}</label>
+                                        <select v-model="element.configuration.rest.time" @change="saveConfiguration(element.component, element.configuration)" class="form-select form-select-sm bg-dark text-white d-inline" aria-label=".form-select-sm example" id="rest-time">
+                                            <option value="300000">5 {{ dialogs.translations.minutes }}</option>
+                                            <option value="900000">15 {{ dialogs.translations.minutes }}</option>
+                                            <option value="1800000">30 {{ dialogs.translations.minutes }}</option>
+                                            <option value="3600000">60 {{ dialogs.translations.minutes }}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="small text-muted mt-4">
+                            <b>{{ dialogs.translations.change_after_restart }}:</b>
+                            <button type="button" class="btn btn-secondary btn-sm" @click="reload" title="Clic para reiniciar">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="about-component-template">
+        <div class="row">
+            <div class="container col-lg-6">
+                <!-- Timer-->
+                <div class="card mb-4 bg-dark text-white border border-secondary">
+                    <div class="card-body">
+                        <h4 class="mb-4">InStatTimer <small class="small">v2.0</small></h4>
+                        <div>
+                            <b>Historial de cambios</b>
+
+                            <div class="mt-2">
+                                <i>v2.1</i>
+                                <ul>
+                                    <li>Corrección de errores</li>
+                                    <li>Agregada sección de "visor de faltas" > descripción</li>
+                                </ul>
+                            </div>  
+
+                            <div class="mt-2">
+                                <i>v2.0</i>
+                                <ul>
+                                    <li>Agregada sección de configuración del tiempo de descanso</li>
+                                    <li>Restructuración del código</li>
+                                    <li>Mejora en la estabilidad del sistema</li>
+                                </ul>
+                            </div>  
+
+                            <div class="mt-2">
+                                <i>v1.0</i>
+                                <ul>
+                                    <li>
+                                        Presentación inicial
+                                    </li>
+                                </ul>
+                            </div>                            
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="foul-viewer-component-template">
+        <div class="row">
+            <div class="container col-lg-12">
+                <div class="card mb-4 bg-dark text-white border border-secondary">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <ul class="navbar-nav ms-auto ">
+                                <li class="nav-item">
+                                    <a :class="tabs.active === 'descriptions' ? 'nav-link d-inline m-2 active' : 'nav-link d-inline m-2 text-muted'" :title="dialogs.translations.definitions" @click="setTabView('descriptions')">
+                                        <i class="bi bi-journal-text"></i>
+                                    </a>
+
+                                    <a :class="tabs.active === 'translations' ? 'nav-link d-inline m-2 active' : 'nav-link d-inline m-2 text-muted'" :title="dialogs.translations.translations"  @click="setTabView('translations')">
+                                        <i class="bi bi-translate"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                            
+                        </div>
+                        <div v-if="tabs.active === 'descriptions'">
+                            <div>
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text bg-dark text-white">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                    <input v-model="fouls.description.filter" @keyup="search().definition()" type="text" class="form-control bg-dark text-white" :placeholder="dialogs.translations.enter_the_name_or_description_of_the_foul" id="search-descriptions">
+                                </div>
+                            </div>
+                            <div>
+                                <div class="fouls-description-table">
+                                    <table class="table table-dark m-auto w-75 text-center">
+                                        <thead class="text-center">
+                                            <tr>
+                                                <th scope="col">{{ dialogs.translations.name }}</th>
+                                                <th scope="col">{{ dialogs.translations.description }}</th>
+                                                <th scope="col">{{ dialogs.translations.illustration }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="foul of fouls.description.list">
+                                                <td>
+                                                    {{ foul.name }}
+                                                </td>
+                                                <td>
+                                                    {{ foul.description[dialogs.lang] }}
+                                                </td>
+                                                <td>
+                                                    <span v-if="Array.isArray(foul.img)">
+                                                        <img v-for="img of foul.img" class="img-foul-description" :src="img" :title="dialogs.translations.keep_the_click_pressed_to_zoom">
+                                                    </span>
+                                                    <span v-else-if="foul.img === null">
+                                                        <i class="bi bi-question-circle-fill" :title="dialogs.translations.you_can_send_an_image_to_set_it_here"></i>
+                                                    </span>
+                                                    <span v-else>
+                                                        <img class="img-foul-description" :src="foul.img" :title="dialogs.translations.keep_the_click_pressed_to_zoom">
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            <tr v-if="fouls.description.list.length === 0">
+                                                <td colspan="3">
+                                                    {{ dialogs.translations.no_results_found }}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else-if="tabs.active === 'translations'">
+                            <div>
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text bg-dark text-white">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                    <input v-model="fouls.translation.filter" @keyup="search().translation()" type="text" class="form-control bg-dark text-white" :placeholder="dialogs.translations.enter_the_name_of_the_foul" id="search-translations">
+                                </div>
+                            </div>
+                            <div v-if="fouls.translation.filter !== null && fouls.translation.filter.length > 0">
+                                <div class="fouls-description-table">
+                                    <table class="table table-dark m-auto w-75 text-center table-striped">
+                                        <thead class="text-center">
+                                            <tr>
+                                                <th scope="col">{{ dialogs.translations.english }}</th>
+                                                <th scope="col">{{ dialogs.translations.german }}</th>
+                                                <th scope="col">{{ dialogs.translations.finnish }}</th>
+                                                <th scope="col">{{ dialogs.translations.slovak }}</th>
+                                                <th scope="col">{{ dialogs.translations.french }}</th>
+                                                <th scope="col">{{ dialogs.translations.polish }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="foul of fouls.translation.list" class="rounded">
+                                                <td>
+                                                    <span>
+                                                        {{ foul.english }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span v-if="foul.german !== null">
+                                                        {{ foul.german }}
+                                                    </span>
+                                                    <span v-else>
+                                                        <i class="bi bi-question-circle-fill" title="Si conoces la traducción puedes enviarla"></i>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span v-if="foul.finnish !== null">
+                                                        {{ foul.finnish }}
+                                                    </span>
+                                                    <span v-else>
+                                                        <i class="bi bi-question-circle-fill" title="Si conoces la traducción puedes enviarla"></i>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span v-if="foul.slovak !== null">
+                                                        {{ foul.slovak }}
+                                                    </span>
+                                                    <span v-else>
+                                                        <i class="bi bi-question-circle-fill" title="Si conoces la traducción puedes enviarla"></i>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span v-if="foul.french !== null">
+                                                        {{ foul.french }}
+                                                    </span>
+                                                    <span v-else>
+                                                        <i class="bi bi-question-circle-fill" title="Si conoces la traducción puedes enviarla"></i>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span v-if="foul.polish !== null">
+                                                        {{ foul.polish }}
+                                                    </span>
+                                                    <span v-else>
+                                                        <i class="bi bi-question-circle-fill" title="Si conoces la traducción puedes enviarla"></i>
+                                                    </span>
+                                                </td>
+                                                
+                                            </tr>
+                                            <tr v-if="fouls.translation.list.length === 0">
+                                                <td colspan="6">
+                                                    {{ dialogs.translations.no_results_found }}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div v-else class="text-center">
+                                <span class="text-muted fs-2">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                            </div>
+
+
+                        </div>
+                        
+                        
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+
+    <script type="text/x-template" id="translater-component-template">
+        <a class="dropdown nav-link d-inline m-1">
+            <i class="bi bi-translate dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Cambiar idioma"></i>
+            <ul class="dropdown-menu dropdown-menu-dark">
+                <li v-for="lang of langs">
+                    <a class="dropdown-item" @click="changeLang(lang.name)">
+                        {{ lang.localName[0].toUpperCase() + lang.localName.slice(1) }}
+                        <i v-if="configuration.lang === lang.name" class="bi bi-check2"></i>
+                    </a>
+                </li>
+            </ul>
+        </a>
+    </script>
+
+
+    <script src="../framework/vuejs/vue.js"></script>
+    <script src="../framework/popper/popper.min.js"></script>
+    <script src="../framework/bootstrap/js/bootstrap.js"></script>
+    <script src="../js/Tools.js"></script>
+    <script src="../framework/translater/translater.js"></script>
+    <script src="../js/main.js"></script>
+
+</body>
+
+</html>
